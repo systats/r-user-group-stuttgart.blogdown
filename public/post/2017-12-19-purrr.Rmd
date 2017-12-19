@@ -1,0 +1,115 @@
+---
+title: "Iterative Regressionen"
+author: "Simon Roth"
+date: 2017-12-19
+categories: ["R"]
+tags: ["purrr", "map", "regression", "loops"]
+---
+
+Dieses kurze Notebook wird `purrr` vorstellen, welches perfekt for loops standardisiert und eine repetitive Modellschätzung super simple macht. Zuerst müssen die Daten und Packages geladen werden.
+
+<!--more-->
+
+# Load data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = F, message = F, error = F)
+```
+
+
+
+```{r}
+pacman::p_load(tidyr, ggplot2, dplyr, purrr)
+
+load(url("https://github.com/systats/macro_project/raw/master/project_macro.Rdata"))
+
+glimpse(project_macro[,1:10])
+```
+
+Eine Möglichkeit eine definiertes set an Missing Values für alle Variablen zu ersetzten durch NA
+
+```{r}
+# Pet data
+data <- data.frame(x = c(1, 2, 99), y = c(-1, 1, 2))
+# Missing Values you wanna repalce
+pre_missing <- c(99,-1,-2,-3)
+# loop through every column jj and replace pre_missing by NA
+for(jj in seq_along(data)) {
+  data[data[[jj]] %in% pre_missing, colnames(data)[[jj]] ] <- NA
+}
+```
+
+Dann erst ...
+
+```{r}
+dat_nest <- project_macro %>%
+  select(pol_rights, gdppc, year) %>% # enferene Zeilen die NA an bei diesen Vars haben. 
+  na.omit() %>%
+  dplyr::group_by(year) %>% # gruppiere den Datensatz pro Jahr (oder Land oder sonstigem Kontext).
+  tidyr::nest() %>% # unspeichere ihn selbst in eine Zelle
+  dplyr::arrange(year) # dann ordne nach Jahr.
+
+dplyr::glimpse(dat_nest)
+```
+
+Wie man sieht wurde der rießen Datensatz in einen kleineren komprimiert, wobei die Spalte `data` 42 Subdatensätze beinhaltet. Als nächstes definieren wir die Regressionsformel als seperate Funktion (die Formel kann nicht variieren). Anschließend wird auf jeden der 42 Datensätze das Modell angewandt. 
+
+```{r}
+fun_fit_ols <- function(df){
+  lm(pol_rights ~ gdppc, data = df)
+}
+
+library(purrr)
+models <- dat_nest %>%
+  dplyr::mutate(mod = purrr::map(data, fun_fit_ols))
+
+glimpse(models)
+```
+
+Neben den Daten sind anschließend auch 42 Modelle unter der Variable mod gespeichert. Nun können wir die Daten aus den 42 Modellen extrahieren und z.B. visualisieren. 
+
+```{r}
+models <- models %>%
+  mutate(
+    tidy = map(mod, broom::tidy),
+    glance = map(mod, broom::glance),
+    rsq = glance %>% map_dbl("r.squared"),
+    augment = map(mod, broom::augment)
+  )
+
+models_all <- models %>%
+  unnest(tidy)
+
+# für das R2 und andere performance measures
+models %>%
+  unnest(glance)
+
+# Plot distribution of parameters
+models_all %>%
+  ggplot(aes(estimate)) +
+  geom_histogram() +
+  facet_wrap(~term, scales = "free")
+
+# save(models_all, file = "models_all.Rdata")
+# write.csv(models_all, file = "models_all.csv", row.names = F)
+# xlsx::write.xlsx(models_all, file = "models_all.xlsx")
+```
+
+
+Die Zeiten in den GDP sich auf das Niveau der Demokratie auswirket scheinen vorüber. 
+
+```{r}
+models %>%
+  filter(!is.na(year)) %>%
+  group_by(year) %>%
+  summarise(mrsq = mean(rsq), sdrsq = sd(rsq)) %>%
+  mutate(id = 1:n()) %>%
+  ggplot(aes(mrsq, reorder(year, mrsq))) +
+  geom_point() +
+  #geom_smooth(aes(mrsq, id), se = F) +
+  geom_line(aes(mrsq, reorder(year, mrsq))) +
+  ggrepel::geom_text_repel(aes(label = reorder(year, mrsq))) +
+  theme(axis.text.y = element_text(color = NA)) +
+  labs(x = "averaged rsquared", y = "")
+```
+

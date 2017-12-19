@@ -1,0 +1,124 @@
+---
+title: "Iterative Regressionen"
+author: "Simon Roth"
+date: 2017-12-19
+categories: ["R"]
+tags: ["purrr", "map", "regression", "loops"]
+---
+
+
+
+<p>Dieses kurze Notebook wird <code>purrr</code> vorstellen, welches perfekt for loops standardisiert und eine repetitive Modellschätzung super simple macht. Zuerst müssen die Daten und Packages geladen werden.</p>
+<!--more-->
+<div id="load-data" class="section level1">
+<h1>Load data</h1>
+<pre class="r"><code>pacman::p_load(tidyr, ggplot2, dplyr, purrr)
+
+load(url(&quot;https://github.com/systats/macro_project/raw/master/project_macro.Rdata&quot;))
+
+glimpse(project_macro[,1:10])</code></pre>
+<pre><code>## Observations: 8,398
+## Variables: 10
+## $ iso2c         &lt;chr&gt; &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, &quot;AF&quot;, ...
+## $ country       &lt;chr&gt; &quot;Afghanistan&quot;, &quot;Afghanistan&quot;, &quot;Afghanistan&quot;, &quot;Af...
+## $ year          &lt;dbl&gt; 1972, 1999, 1971, 1998, 1996, 2002, 2001, 1986, ...
+## $ gdppc         &lt;dbl&gt; 136.11701, NA, 160.37284, NA, NA, 187.84509, 117...
+## $ gdp_ppp       &lt;dbl&gt; NA, NA, NA, NA, NA, 875.5176, NA, NA, NA, NA, NA...
+## $ pop_total     &lt;dbl&gt; 11721940, 19403676, 11417825, 18863999, 17822884...
+## $ pop_dens      &lt;dbl&gt; 17.95475, 29.72104, 17.48893, 28.89440, 27.29970...
+## $ oil           &lt;dbl&gt; NA, NA, NA, NA, NA, 0.010029386, 0.016272106, NA...
+## $ natural       &lt;dbl&gt; 0.3979644, NA, 0.3445316, NA, NA, 1.4746043, 2.1...
+## $ health_public &lt;dbl&gt; NA, NA, NA, NA, NA, 0.5507233, NA, NA, NA, NA, N...</code></pre>
+<p>Eine Möglichkeit eine definiertes set an Missing Values für alle Variablen zu ersetzten durch NA</p>
+<pre class="r"><code># Pet data
+data &lt;- data.frame(x = c(1, 2, 99), y = c(-1, 1, 2))
+# Missing Values you wanna repalce
+pre_missing &lt;- c(99,-1,-2,-3)
+# loop through every column jj and replace pre_missing by NA
+for(jj in seq_along(data)) {
+  data[data[[jj]] %in% pre_missing, colnames(data)[[jj]] ] &lt;- NA
+}</code></pre>
+<p>Dann erst …</p>
+<pre class="r"><code>dat_nest &lt;- project_macro %&gt;%
+  select(pol_rights, gdppc, year) %&gt;% # enferene Zeilen die NA an bei diesen Vars haben. 
+  na.omit() %&gt;%
+  dplyr::group_by(year) %&gt;% # gruppiere den Datensatz pro Jahr (oder Land oder sonstigem Kontext).
+  tidyr::nest() %&gt;% # unspeichere ihn selbst in eine Zelle
+  dplyr::arrange(year) # dann ordne nach Jahr.
+
+dplyr::glimpse(dat_nest)</code></pre>
+<pre><code>## Observations: 42
+## Variables: 2
+## $ year &lt;dbl&gt; 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 198...
+## $ data &lt;list&gt; [&lt;# A tibble: 100 x 2,    pol_rights      gdppc,        ...</code></pre>
+<p>Wie man sieht wurde der rießen Datensatz in einen kleineren komprimiert, wobei die Spalte <code>data</code> 42 Subdatensätze beinhaltet. Als nächstes definieren wir die Regressionsformel als seperate Funktion (die Formel kann nicht variieren). Anschließend wird auf jeden der 42 Datensätze das Modell angewandt.</p>
+<pre class="r"><code>fun_fit_ols &lt;- function(df){
+  lm(pol_rights ~ gdppc, data = df)
+}
+
+library(purrr)
+models &lt;- dat_nest %&gt;%
+  dplyr::mutate(mod = purrr::map(data, fun_fit_ols))
+
+glimpse(models)</code></pre>
+<pre><code>## Observations: 42
+## Variables: 3
+## $ year &lt;dbl&gt; 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1980, 198...
+## $ data &lt;list&gt; [&lt;# A tibble: 100 x 2,    pol_rights      gdppc,        ...
+## $ mod  &lt;list&gt; [&lt;5.2633839876, -0.0009325329, -1.13645040, 2.04354946, ...</code></pre>
+<p>Neben den Daten sind anschließend auch 42 Modelle unter der Variable mod gespeichert. Nun können wir die Daten aus den 42 Modellen extrahieren und z.B. visualisieren.</p>
+<pre class="r"><code>models &lt;- models %&gt;%
+  mutate(
+    tidy = map(mod, broom::tidy),
+    glance = map(mod, broom::glance),
+    rsq = glance %&gt;% map_dbl(&quot;r.squared&quot;),
+    augment = map(mod, broom::augment)
+  )
+
+models_all &lt;- models %&gt;%
+  unnest(tidy)
+
+# für das R2 und andere performance measures
+models %&gt;%
+  unnest(glance)</code></pre>
+<pre><code>## # A tibble: 42 x 17
+##     year               data      mod                 tidy       rsq
+##    &lt;dbl&gt;             &lt;list&gt;   &lt;list&gt;               &lt;list&gt;     &lt;dbl&gt;
+##  1  1972 &lt;tibble [100 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.3697531
+##  2  1973 &lt;tibble [101 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.3830218
+##  3  1974 &lt;tibble [101 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2689770
+##  4  1975 &lt;tibble [102 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2847118
+##  5  1976 &lt;tibble [106 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2556822
+##  6  1977 &lt;tibble [106 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2852781
+##  7  1978 &lt;tibble [106 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2889951
+##  8  1979 &lt;tibble [107 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2281388
+##  9  1980 &lt;tibble [115 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2175448
+## 10  1981 &lt;tibble [118 x 2]&gt; &lt;S3: lm&gt; &lt;data.frame [2 x 5]&gt; 0.2075603
+## # ... with 32 more rows, and 12 more variables: augment &lt;list&gt;,
+## #   r.squared &lt;dbl&gt;, adj.r.squared &lt;dbl&gt;, sigma &lt;dbl&gt;, statistic &lt;dbl&gt;,
+## #   p.value &lt;dbl&gt;, df &lt;int&gt;, logLik &lt;dbl&gt;, AIC &lt;dbl&gt;, BIC &lt;dbl&gt;,
+## #   deviance &lt;dbl&gt;, df.residual &lt;int&gt;</code></pre>
+<pre class="r"><code># Plot distribution of parameters
+models_all %&gt;%
+  ggplot(aes(estimate)) +
+  geom_histogram() +
+  facet_wrap(~term, scales = &quot;free&quot;)</code></pre>
+<p><img src="/post/2017-12-19-purrr_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<pre class="r"><code># save(models_all, file = &quot;models_all.Rdata&quot;)
+# write.csv(models_all, file = &quot;models_all.csv&quot;, row.names = F)
+# xlsx::write.xlsx(models_all, file = &quot;models_all.xlsx&quot;)</code></pre>
+<p>Die Zeiten in den GDP sich auf das Niveau der Demokratie auswirket scheinen vorüber.</p>
+<pre class="r"><code>models %&gt;%
+  filter(!is.na(year)) %&gt;%
+  group_by(year) %&gt;%
+  summarise(mrsq = mean(rsq), sdrsq = sd(rsq)) %&gt;%
+  mutate(id = 1:n()) %&gt;%
+  ggplot(aes(mrsq, reorder(year, mrsq))) +
+  geom_point() +
+  #geom_smooth(aes(mrsq, id), se = F) +
+  geom_line(aes(mrsq, reorder(year, mrsq))) +
+  ggrepel::geom_text_repel(aes(label = reorder(year, mrsq))) +
+  theme(axis.text.y = element_text(color = NA)) +
+  labs(x = &quot;averaged rsquared&quot;, y = &quot;&quot;)</code></pre>
+<p><img src="/post/2017-12-19-purrr_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+</div>

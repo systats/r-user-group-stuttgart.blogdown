@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on R User Group Stuttgart</title>
+    <link>/post/</link>
+    <description>Recent content in Posts on R User Group Stuttgart</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <copyright>...</copyright>
+    <lastBuildDate>Tue, 19 Dec 2017 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Iterative Regressionen</title>
+      <link>/post/2017-12-19-purrr/</link>
+      <pubDate>Tue, 19 Dec 2017 00:00:00 +0000</pubDate>
+      
+      <guid>/post/2017-12-19-purrr/</guid>
+      <description>Dieses kurze Notebook wird purrr vorstellen, welches perfekt for loops standardisiert und eine repetitive Modellschätzung super simple macht. Zuerst müssen die Daten und Packages geladen werden.
+ Load data pacman::p_load(tidyr, ggplot2, dplyr, purrr) load(url(&amp;quot;https://github.com/systats/macro_project/raw/master/project_macro.Rdata&amp;quot;)) glimpse(project_macro[,1:10]) ## Observations: 8,398 ## Variables: 10 ## $ iso2c &amp;lt;chr&amp;gt; &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, &amp;quot;AF&amp;quot;, ... ## $ country &amp;lt;chr&amp;gt; &amp;quot;Afghanistan&amp;quot;, &amp;quot;Afghanistan&amp;quot;, &amp;quot;Afghanistan&amp;quot;, &amp;quot;Af... ## $ year &amp;lt;dbl&amp;gt; 1972, 1999, 1971, 1998, 1996, 2002, 2001, 1986, .</description>
+    </item>
+    
+  </channel>
+</rss>
